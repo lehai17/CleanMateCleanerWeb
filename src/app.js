@@ -1,3 +1,4 @@
+import {showRecovery} from './account.js';
 import { api, session } from './api.js';
 import {showSupport} from './support.js';
 import {showPassword} from './password.js';
@@ -24,6 +25,7 @@ function field(label, name, value = '', type = 'text', max = 200, required = tru
 function login(error = '', register = false) {
   revision++;
   root.innerHTML = `<div class="login"><aside class="login-aside"><div class="brand">Clean<span>Mate</span> Cleaner</div><h1>Chủ động công việc.<br>An tâm mỗi ca làm.</h1><p>Nhận việc phù hợp, theo dõi lịch làm và quản lý hồ sơ của bạn.</p></aside><main class="login-main"><p class="eyebrow">Dành cho cộng tác viên</p><h2>${register ? 'Đăng ký làm cleaner' : 'Đăng nhập'}</h2><div id="notice" class="${error ? 'alert' : ''}">${h(error)}</div><form id="auth">${register ? field('Họ tên','fullName') + field('Số điện thoại','phoneNumber','','tel',20) : ''}${field('Email','email','','email',254)}${field('Mật khẩu','password','','password',register ? 72 : 128)}<button>${register ? 'Gửi đăng ký' : 'Đăng nhập'}</button></form><button id="switch" class="secondary">${register ? 'Đã có tài khoản? Đăng nhập' : 'Đăng ký làm cleaner'}</button><p class="muted">Hồ sơ cần được nhân viên duyệt trước khi nhận việc.</p></main></div>`;
+  const recovery=document.createElement('button');recovery.type='button';recovery.className='secondary';recovery.textContent='Quên mật khẩu?';root.querySelector('.login-main').appendChild(recovery);recovery.onclick=()=>showRecovery({view:root,api,onBack:()=>login()});
   document.querySelector('#switch').onclick = () => login('', !register);
   document.querySelector('#auth').onsubmit = async event => {
     event.preventDefault(); const form = event.currentTarget, button = form.querySelector('button'); button.disabled = true;
