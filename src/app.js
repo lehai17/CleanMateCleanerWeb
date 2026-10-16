@@ -1,13 +1,19 @@
 import { api, session } from './api.js';
-import { approved, eligible, actionFor, stats } from './domain.js';
+import { approved, eligible, actionFor, stats, filterJobs, phoneUrl, mapsUrl } from './domain.js';
 const root = document.querySelector('#app');
 const h = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const money = value => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
-const date = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
+const date = value => value ? new Date(value).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}) : '—';
 const labels = { Pending:'Chờ duyệt', Approved:'Đã duyệt', NeedsInfo:'Cần bổ sung', Rejected:'Từ chối', Accepted:'Đã nhận', InProgress:'Đang làm', Completed:'Hoàn thành', Cancelled:'Đã hủy' };
 const actions = { accept:'Nhận việc', start:'Bắt đầu công việc', complete:'Hoàn thành công việc', 'cash-payment':'Xác nhận đã nhận tiền mặt' };
 let user, revision = 0, busy = false, noticeItems = [], cursor;
-const route = () => location.hash.slice(2) || 'dashboard';
+const route = () => location.hash.slice(2).split('?')[0] || 'dashboard';
+const selectedBooking = () => {
+  const value = new URLSearchParams(location.hash.split('?')[1] || '').get('booking');
+  return /^\d+$/.test(value || '') && Number(value) > 0 ? Number(value) : null;
+};
+const emptyFilters = () => ({search:'',status:'All',day:''});
+const jobFilters = {available:emptyFilters(),jobs:emptyFilters(),calendar:emptyFilters()};
 function message(text) { const el = document.querySelector('#notice'); if (el) { el.className = text ? 'alert' : ''; el.textContent = text; } }
 function fail(error) { if (error.status === 401) { session.clear(); user = null; login(error.message); } else message(error.message); }
 function field(label, name, value = '', type = 'text', max = 200, required = true) {
@@ -32,11 +38,46 @@ function login(error = '', register = false) {
 function layout(current) {
   const links = approved(user) ? [['dashboard','Tổng quan'],['available','Tìm việc'],['jobs','Công việc của tôi'],['calendar','Lịch làm việc'],['notifications','Thông báo'],['profile','Hồ sơ']] : [['profile','Hồ sơ'],['notifications','Thông báo']];
   root.innerHTML = `<div class="layout"><aside class="sidebar"><div><div class="brand">Clean<span>Mate</span></div><small>Không gian cộng tác viên</small></div><nav aria-label="Cleaner">${links.map(([key,label]) => `<a href="#/${key}" ${key === current ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav><div class="account"><strong>${h(user.fullName)}</strong><p>${h(user.email)}</p><button id="logout">Đăng xuất</button></div></aside><div class="workspace"><header class="topbar"><h1>${h(links.find(([key]) => key === current)?.[1] || 'Hồ sơ')}</h1><span class="role">${approved(user) ? 'Cleaner đã duyệt' : 'Chờ xét hồ sơ'}</span></header><main class="content"><div id="notice" role="status"></div><section id="view" aria-live="polite">Đang tải...</section></main></div></div>`;
-  document.querySelector('#logout').onclick = () => { session.clear(); user = null; login(); };
+  document.querySelector('#logout').onclick = () => { session.clear(); user = null; Object.keys(jobFilters).forEach(key => jobFilters[key] = emptyFilters()); login(); };
 }
 function jobCard(job, hasActive) {
   const action = actionFor(job), blocked = action === 'start' && hasActive;
-  return `<article class="job-card" data-booking-id="${job.id}" id="job-${job.id}"><div class="section-head"><h3>CM${job.id}</h3><span class="status ${h(job.status)}">${job.status === 'Pending' ? 'Chờ nhận' : h(labels[job.status])}</span></div><p><strong>${h(job.customerName)}</strong> · ${h(job.customerPhone || 'Chưa có số liên hệ')}</p><p>${h(date(job.startTime))} → ${h(date(new Date(new Date(job.startTime).getTime() + job.durationHours * 3600000)))} · ${job.durationHours} giờ</p><p>${h(job.address)}</p><p>${h(job.notes)}</p><p class="job-price">${money(job.price)}</p><p>${job.paymentMethod === 'cash' ? job.paymentStatus === 'Paid' ? 'Bạn đã xác nhận nhận đủ tiền mặt' : 'Khách trả tiền mặt trực tiếp sau ca' : 'Thông tin thanh toán lưu từ trước'}</p>${job.startedAt ? `<p>Bắt đầu thực tế: ${h(date(job.startedAt))}</p>` : ''}${job.completedAt ? `<p>Hoàn thành thực tế: ${h(date(job.completedAt))}</p>` : ''}${job.customerConfirmedAt ? `<p>Khách đã xác nhận · Đánh giá: ${job.customerRating}/5</p>` : ''}${blocked ? '<p>Hoàn thành ca đang làm trước khi bắt đầu ca tiếp theo.</p>' : ''}${action ? `<button data-job="${job.id}" data-action="${action}" ${blocked ? 'disabled' : ''}>${actions[action]}</button>` : ''}</article>`;
+  const phone = phoneUrl(job.customerPhone), map = mapsUrl(job.address);
+  return `<article class="job-card" data-booking-id="${job.id}" id="job-${job.id}">
+    <div class="section-head"><h3>CM${job.id}</h3><span class="status ${h(job.status)}">${job.status === 'Pending' ? 'Chờ nhận' : h(labels[job.status])}</span></div>
+    <p><strong>${h(job.customerName)}</strong> · ${h(job.customerPhone || 'Chưa có số liên hệ')}</p>
+    <p>${h(date(job.startTime))} → ${h(date(new Date(new Date(job.startTime).getTime() + job.durationHours * 3600000)))} · ${job.durationHours} giờ</p>
+    <p>${h(job.address)}</p><p>${h(job.notes)}</p><p class="job-price">${money(job.price)}</p>
+    <p>${job.paymentMethod === 'cash' ? job.paymentStatus === 'Paid' ? 'Bạn đã xác nhận nhận đủ tiền mặt' : 'Khách trả tiền mặt trực tiếp sau ca' : 'Thông tin thanh toán lưu từ trước'}</p>
+    ${job.startedAt ? `<p>Bắt đầu thực tế: ${h(date(job.startedAt))}</p>` : ''}${job.completedAt ? `<p>Hoàn thành thực tế: ${h(date(job.completedAt))}</p>` : ''}
+    ${job.customerConfirmedAt ? `<p>Khách đã xác nhận · Đánh giá: ${job.customerRating}/5</p>` : ''}
+    <div class="contact-links">${phone && job.status !== 'Pending' ? `<a href="${h(phone)}">Gọi khách</a>` : ''}${map ? `<a href="${h(map)}" target="_blank" rel="noopener noreferrer">Xem bản đồ</a>` : ''}</div>
+    ${blocked ? '<p>Hoàn thành ca đang làm trước khi bắt đầu ca tiếp theo.</p>' : ''}
+    ${action ? `<button data-job="${job.id}" data-action="${action}" ${blocked ? 'disabled' : ''}>${actions[action]}</button>` : ''}</article>`;
+}
+function renderJobList(view, jobs, mine, current) {
+  const selected = current === 'jobs' ? selectedBooking() : null;
+  const filters = selected ? emptyFilters() : jobFilters[current];
+  const statuses = current === 'calendar' ? ['All','Accepted','InProgress'] : ['All','Accepted','InProgress','Completed','Cancelled'];
+  view.innerHTML = `<div class="section-head"><p>${current === 'available' ? 'Ca trùng lịch đã nhận được tự động ẩn.' : 'Hoàn thành ca đang làm trước khi bắt đầu ca tiếp theo.'}</p><button id="reload" class="secondary">Tải lại</button></div>
+    ${selected ? `<p>Đang xem công việc CM${selected} từ thông báo. <a href="#/jobs">Xem tất cả công việc</a></p>` : ''}
+    <form id="job-filters" class="filters"><label>Tìm công việc<input name="search" maxlength="100" placeholder="Mã CM, khách hàng, địa chỉ" value="${h(filters.search)}" ${selected ? 'disabled' : ''}></label>
+    <label>Ngày làm việc<input name="day" type="date" value="${h(filters.day)}" ${selected ? 'disabled' : ''}></label>
+    ${current !== 'available' ? `<label>Trạng thái<select name="status" aria-label="Trạng thái" ${selected ? 'disabled' : ''}>${statuses.map(value => `<option value="${value}" ${filters.status === value ? 'selected' : ''}>${value === 'All' ? 'Tất cả' : labels[value]}</option>`).join('')}</select></label>` : ''}
+    <button ${selected ? 'disabled' : ''}>Lọc công việc</button><button type="button" id="clear-filters" class="secondary" ${selected ? 'disabled' : ''}>Xóa bộ lọc</button></form>
+    <p id="result-count" role="status"></p><div id="job-results" class="job-grid"></div>`;
+  const draw = () => {
+    const visible = filterJobs(jobs, {...jobFilters[current],calendar:current === 'calendar',...(selected ? {...emptyFilters(),bookingId:selected} : {})});
+    document.querySelector('#result-count').textContent = `${visible.length} công việc phù hợp · Ngày theo giờ Việt Nam`;
+    document.querySelector('#job-results').innerHTML = visible.map(job => jobCard(job,mine.some(item => item.status === 'InProgress'))).join('') || `<p>${selected ? 'Không tìm thấy ca này trong công việc của bạn. Tải lại hoặc xem tất cả công việc.' : 'Chưa có công việc phù hợp. Thử đổi ngày hoặc xóa bộ lọc.'}</p>`;
+    bindJobs();
+  };
+  document.querySelector('#job-filters').onsubmit = event => {
+    event.preventDefault(); if (busy || selected) return;
+    jobFilters[current] = {...emptyFilters(),...Object.fromEntries(new FormData(event.currentTarget))}; draw();
+  };
+  document.querySelector('#clear-filters').onclick = () => { if (busy) return; jobFilters[current] = emptyFilters(); const form = document.querySelector('#job-filters'); form.elements.search.value = ''; form.elements.day.value = ''; if (form.elements.status) form.elements.status.value = 'All'; draw(); };
+  document.querySelector('#reload').onclick = render; draw();
 }
 function bindJobs() {
   document.querySelectorAll('[data-job]').forEach(button => button.onclick = async () => {
@@ -79,7 +120,8 @@ async function notifications(view, stamp) {
     document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
       const item = noticeItems.find(n => n.id === Number(b.dataset.open));
       if (item.target === 'Orders') { message('Thông báo này thuộc đơn khách hàng. Vui lòng mở web/app khách hàng để xem.'); return; }
-      location.hash = item.target === 'Profile' || !approved(user) ? '#/profile' : '#/jobs';
+      if (item.target === 'Profile' || !approved(user)) location.hash = '#/profile';
+      else { jobFilters.jobs = emptyFilters(); location.hash = Number.isSafeInteger(item.bookingId) && item.bookingId > 0 ? `#/jobs?booking=${item.bookingId}` : '#/jobs'; }
     });
     if (cursor) document.querySelector('#more').onclick = async event => {
       event.currentTarget.disabled = true;
@@ -110,10 +152,8 @@ async function render() {
       return;
     }
     const available = current === 'available' ? await api('/cleaner/jobs/available') : null; if (stamp !== revision) return;
-    let jobs = available || mine;
-    if (current === 'calendar') jobs = mine.filter(j => ['Accepted','InProgress'].includes(j.status)).sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
-    view.innerHTML = `<div class="section-head"><p>${current === 'available' ? 'Ca trùng lịch đã nhận được tự động ẩn.' : 'Hoàn thành ca đang làm trước khi bắt đầu ca tiếp theo.'}</p><button id="reload" class="secondary">Tải lại</button></div><div class="job-grid">${jobs.map(j => jobCard(j, mine.some(m => m.status === 'InProgress'))).join('') || '<p>Chưa có công việc phù hợp.</p>'}</div>`;
-    document.querySelector('#reload').onclick = render; bindJobs();
+    if (!['available','jobs','calendar'].includes(current)) { location.hash = '#/dashboard'; return; }
+    renderJobList(view,available || mine,mine,current);
   } catch (e) { if (stamp === revision) { view.innerHTML = '<button id="retry">Thử lại</button>'; document.querySelector('#retry').onclick = render; fail(e); } }
 }
 window.addEventListener('hashchange', () => { if (!busy) render(); });
