@@ -61,7 +61,7 @@ preserves Retry-After and replaces browser-provided forwarding headers with the
 socket peer IP. New passwords are capped at 72 UTF-8 bytes by the backend.
 See ../backend/AUTH_RATE_LIMITS.md for quotas and proxy deployment settings.
 
-Verified 16 October 2026: 9 Node tests and 24 Playwright desktop/mobile cases
+Verified 16 October 2026: 9 Node tests and 28 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 Security → Đổi mật khẩu requires the current password and a matching new password.
 Success invalidates old JWT sessions and returns to login. Google-only accounts
@@ -105,3 +105,11 @@ Add cleaner job filters, contact shortcuts, and notification job navigation
 
 If your Windows user encounters sandbox ownership detection, trust only this repo:
 `git config --global --add safe.directory E:/cleanmate/cleaner-web`.
+
+## Email recovery and verification
+
+The login screen offers password recovery with a single-use email code. Security
+settings can request and confirm email verification. Reset revokes old sessions;
+verification does not grant a cleaner approval. Automated tests use a fake mailbox,
+not external email. A real SMTP relay must be configured and tested for deployment.
+See ../backend/ACCOUNT_RECOVERY.md for API, limits and restart/delivery caveats.
