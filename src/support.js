@@ -1,3 +1,4 @@
+import {conversation} from './conversation.js';
 export const categories = {Scheduling:'Lịch làm / không đến',Quality:'Chất lượng công việc',CashPayment:'Tiền mặt với khách/cleaner',Other:'Vấn đề khác'};
 const statuses = {Open:'Đã tiếp nhận',InProgress:'Đang xử lý',Resolved:'Đã giải quyết'};
 export async function showSupport({view,api,h,isCurrent,fail}) {
@@ -16,6 +17,10 @@ export async function showSupport({view,api,h,isCurrent,fail}) {
     document.querySelector('#support-list').innerHTML = data.items.map(item => `<article class="job-card" data-support-id="${item.id}"><h3>HT${item.id} · CM${item.bookingId}</h3><p><strong>${statuses[item.status] || h(item.status)}</strong> · ${categories[item.category] || h(item.category)}</p><p>${h(item.description)}</p>${item.response ? `<p><strong>Phản hồi từ staff:</strong> ${h(item.response)}</p>` : '<p>Nhân viên chưa phản hồi.</p>'}</article>`).join('') || '<p>Bạn chưa có yêu cầu hỗ trợ.</p>';
     document.querySelector('#support-list').insertAdjacentHTML('beforeend',`<p>Trang ${page} · ${data.total} yêu cầu</p><button id="support-prev" ${page===1?'disabled':''}>Trang trước</button> <button id="support-next" ${page*20>=data.total?'disabled':''}>Trang sau</button>`);
     for(const [id,offset] of [['support-prev',-1],['support-next',1]])document.querySelector(`#${id}`).onclick=async event=>{event.currentTarget.disabled=true;const previous=page;page+=offset;try{await load();}catch(e){page=previous;fail(e);if(isCurrent())event.target.disabled=false;}};
+    view.querySelectorAll('[data-support-id]').forEach(card=>{
+      const container=document.createElement('div');card.appendChild(container);
+      conversation({container,ticketId:Number(card.dataset.supportId),api,h,fail,isCurrent:()=>isCurrent()&&container.isConnected,onUpdated:result=>{const status=card.querySelector('strong');if(status&&result.status)status.textContent=statuses[result.status]||result.status;}});
+    });
   };
   document.querySelector('#refresh-support').onclick=()=>load().catch(fail);
   document.querySelector('#support-form').onsubmit=async event=>{

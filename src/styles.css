@@ -14,3 +14,5 @@
 .panel { max-width:760px; }
 .panel form { margin-top:24px; }
 .button-link { display:inline-block; background:#065f46; color:white; padding:14px 22px; border-radius:12px; text-decoration:none; }
+
+.thread-body { white-space: pre-wrap; }

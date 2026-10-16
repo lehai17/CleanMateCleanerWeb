@@ -51,12 +51,17 @@ For deployment run this server behind HTTPS with the correct private API origin.
 
 ## Build and tests
 
+Support → Xem trao đổi opens your private conversation with staff. You can send
+follow-up messages and load older history; sending to a resolved report reopens
+it. Message replies do not change the job or its cash receipt. See
+../backend/SUPPORT_CONVERSATIONS.md for limits, privacy and refresh behavior.
+
 Login/signup errors include the backend's retry time when throttled. The proxy
 preserves Retry-After and replaces browser-provided forwarding headers with the
 socket peer IP. New passwords are capped at 72 UTF-8 bytes by the backend.
 See ../backend/AUTH_RATE_LIMITS.md for quotas and proxy deployment settings.
 
-Verified 16 October 2026: 9 Node tests and 22 Playwright desktop/mobile cases
+Verified 16 October 2026: 9 Node tests and 24 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 Security → Đổi mật khẩu requires the current password and a matching new password.
 Success invalidates old JWT sessions and returns to login. Google-only accounts
