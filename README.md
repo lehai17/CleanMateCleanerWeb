@@ -51,8 +51,14 @@ For deployment run this server behind HTTPS with the correct private API origin.
 
 ## Build and tests
 
-Verified 16 October 2026: 8 Node tests and 16 Playwright desktop/mobile cases
+Verified 16 October 2026: 8 Node tests and 20 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
+Security → Đổi mật khẩu requires the current password and a matching new password.
+Success invalidates old JWT sessions and returns to login. Google-only accounts
+cannot create a separate password through this flow. See ../backend/PROJECT_STATUS.md.
+Security also offers confirmed logout from all CleanMate sessions without changing
+the password, including Google-only accounts. Cancellation and reauthentication
+are covered by the system tests.
 
 ```powershell
 npm test
