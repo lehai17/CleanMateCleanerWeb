@@ -1,6 +1,14 @@
 import {test,expect} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 const API='http://127.0.0.1:15238', password='Cleaner-system-test-123!';
+test('assigned cleaner reports a job problem and reads staff resolution from notifications',async({page,request})=>{
+  const cleaner=await account(request),job=await booking(request),headers={Authorization:`Bearer ${cleaner.token}`};expect((await request.put(`${API}/api/cleaner/jobs/${job.id}/accept`,{headers})).status()).toBe(200);
+  await login(page,cleaner.email);await page.getByRole('link',{name:'Hỗ trợ',exact:true}).click();await page.getByLabel('Mã đơn',{exact:true}).fill(`CM${job.id}`);await page.getByLabel('Loại sự cố',{exact:true}).selectOption('CashPayment');await page.getByLabel('Mô tả',{exact:true}).fill('Cần xác minh thông tin tiền mặt với khách.');
+  const sent=page.waitForResponse(r=>r.url().includes('/api/support')&&r.request().method()==='POST');await page.getByRole('button',{name:'Gửi yêu cầu hỗ trợ',exact:true}).click();const r=await sent;expect(r.status()).toBe(200);const ticket=await r.json();await expect(page.locator(`[data-support-id="${ticket.id}"]`)).toBeVisible();
+  expect((await request.put(`${API}/api/management/support/${ticket.id}`,{headers:await admin(request),data:{status:'Resolved',response:'Đã hướng dẫn hai bên kiểm tra trực tiếp tiền mặt.',version:1}})).status()).toBe(200);
+  await page.getByRole('link',{name:'Thông báo',exact:true}).click();await page.locator('.job-card').filter({hasText:'Yêu cầu hỗ trợ đã được cập nhật'}).getByRole('button',{name:'Xem công việc',exact:true}).click();await expect(page).toHaveURL(/#\/support$/);await expect(page.locator(`[data-support-id="${ticket.id}"]`)).toContainText('Đã hướng dẫn hai bên');
+  const mine=await request.get(`${API}/api/cleaner/jobs/mine`,{headers});expect((await mine.json()).find(j=>j.id===job.id)).toMatchObject({status:'Accepted',paymentStatus:'Unpaid'});
+});
 async function admin(request) {const r=await request.post(`${API}/api/auth/login`,{data:{email:'admin@system.test',password:'CleanMate-admin-test-123!'}});expect(r.status()).toBe(200);return {Authorization:`Bearer ${(await r.json()).token}`};}
 async function review(request,id,status='Approved',reason) {expect((await request.put(`${API}/api/management/applications/${id}/review`,{headers:await admin(request),data:{status,reason}})).status()).toBe(200);}
 async function account(request,role='Cleaner',approve=true) {

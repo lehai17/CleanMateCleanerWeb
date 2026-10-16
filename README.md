@@ -18,10 +18,14 @@ No commit, remote or GitHub repository has been created automatically.
 - Filter work by status and Vietnam calendar day; filters survive data refresh.
 - Open the exact assigned job from a notification, including completed work.
 - Call the customer for an assigned job or open its address in Maps.
+- Report a booking problem in Support, track its state and read the latest staff response.
 
 Existing backend checks enforce ownership, non-overlapping accepted schedules and
 one job in progress. Declared cash totals are not a wallet or a platform payout.
 There is no chat, automatic matching, GPS tracking or online collection in this version.
+Support includes scheduling, quality and direct cash issues. Only booking parties
+can report; each user sees their own reports. Retries of unchanged form data use
+the same request ID. Attachments and message threads are not implemented.
 
 ## Local startup
 
@@ -47,7 +51,7 @@ For deployment run this server behind HTTPS with the correct private API origin.
 
 ## Build and tests
 
-Verified 16 October 2026: 8 Node tests and 14 Playwright desktop/mobile cases
+Verified 16 October 2026: 8 Node tests and 16 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 
 ```powershell
