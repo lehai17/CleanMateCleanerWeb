@@ -61,7 +61,7 @@ preserves Retry-After and replaces browser-provided forwarding headers with the
 socket peer IP. New passwords are capped at 72 UTF-8 bytes by the backend.
 See ../backend/AUTH_RATE_LIMITS.md for quotas and proxy deployment settings.
 
-Verified 16 October 2026: 13 Node tests and 32 Playwright desktop/mobile cases
+Verified 16 October 2026: 14 Node tests and 36 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 Security → Đổi mật khẩu requires the current password and a matching new password.
 Success invalidates old JWT sessions and returns to login. Google-only accounts
