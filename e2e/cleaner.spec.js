@@ -1,6 +1,11 @@
 import {test,expect} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 const API='http://127.0.0.1:15238', password='Cleaner-system-test-123!';
+test('cleaner login displays retry instructions without creating a session',async({page,request})=>{
+  const cleaner=await account(request);await page.goto('/');await page.route('**/api/auth/login',route=>route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'42'},body:JSON.stringify({message:'Thử lại sau 42 giây.',retryAfterSeconds:42})}));
+  await page.getByLabel('Email',{exact:true}).fill(cleaner.email);await page.getByLabel('Mật khẩu',{exact:true}).fill(password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await expect(page.locator('#notice')).toContainText('42 giây');await expect(page.getByLabel('Mật khẩu',{exact:true})).toHaveValue('');
+  await page.unroute('**/api/auth/login');await login(page,cleaner.email);await expect(page.getByRole('link',{name:'Tìm việc',exact:true})).toBeVisible();
+});
 test('cleaner confirms logout all and keeps the existing password',async({page,request})=>{
   const cleaner=await account(request);await login(page,cleaner.email);await page.getByRole('link',{name:'Bảo mật',exact:true}).click();
   page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Đăng xuất tất cả thiết bị',exact:true}).click();expect((await request.get(`${API}/api/me`,{headers:{Authorization:`Bearer ${cleaner.token}`}})).status()).toBe(200);
