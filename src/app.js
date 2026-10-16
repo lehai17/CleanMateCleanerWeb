@@ -1,3 +1,5 @@
+import './ui/preferences.js';
+import { t } from './ui/preferences.js';
 import {showRecovery} from './account.js';
 import { api, session } from './api.js';
 import {showSupport} from './support.js';
@@ -42,7 +44,7 @@ function login(error = '', register = false) {
 function layout(current) {
   const links = approved(user) ? [['dashboard','Tổng quan'],['available','Tìm việc'],['jobs','Công việc của tôi'],['calendar','Lịch làm việc'],['support','Hỗ trợ'],['notifications','Thông báo'],['profile','Hồ sơ']] : [['profile','Hồ sơ'],['support','Hỗ trợ'],['notifications','Thông báo']];
   links.push(['security','Bảo mật']);
-  root.innerHTML = `<div class="layout"><aside class="sidebar"><div><div class="brand">Clean<span>Mate</span></div><small>Không gian cộng tác viên</small></div><nav aria-label="Cleaner">${links.map(([key,label]) => `<a href="#/${key}" ${key === current ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav><div class="account"><strong>${h(user.fullName)}</strong><p>${h(user.email)}</p><button id="logout">Đăng xuất</button></div></aside><div class="workspace"><header class="topbar"><h1>${h(links.find(([key]) => key === current)?.[1] || 'Hồ sơ')}</h1><span class="role">${approved(user) ? 'Cleaner đã duyệt' : 'Chờ xét hồ sơ'}</span></header><main class="content"><div id="notice" role="status"></div><section id="view" aria-live="polite">Đang tải...</section></main></div></div>`;
+  root.innerHTML = `<div class="layout"><aside class="sidebar"><div><div class="brand">Clean<span>Mate</span></div><small>Không gian cộng tác viên</small></div><nav aria-label="Cleaner">${links.map(([key,label]) => `<a href="#/${key}" ${key === current ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav><div class="account"><strong>${`<span data-ui-raw>${h(user.fullName)}</span>`}</strong><p>${`<span data-ui-raw>${h(user.email)}</span>`}</p><button id="logout">Đăng xuất</button></div></aside><div class="workspace"><header class="topbar"><h1>${h(links.find(([key]) => key === current)?.[1] || 'Hồ sơ')}</h1><span class="role">${approved(user) ? 'Cleaner đã duyệt' : 'Chờ xét hồ sơ'}</span></header><main class="content"><div id="notice" role="status"></div><section id="view" aria-live="polite">Đang tải...</section></main></div></div>`;
   document.querySelector('#logout').onclick = () => { session.clear(); user = null; Object.keys(jobFilters).forEach(key => jobFilters[key] = emptyFilters()); login(); };
 }
 function jobCard(job, hasActive) {
@@ -50,9 +52,9 @@ function jobCard(job, hasActive) {
   const phone = phoneUrl(job.customerPhone), map = mapsUrl(job.address);
   return `<article class="job-card" data-booking-id="${job.id}" id="job-${job.id}">
     <div class="section-head"><h3>CM${job.id}</h3><span class="status ${h(job.status)}">${job.status === 'Pending' ? 'Chờ nhận' : h(labels[job.status])}</span></div>
-    <p><strong>${h(job.customerName)}</strong> · ${h(job.customerPhone || 'Chưa có số liên hệ')}</p>
+    <p><strong>${`<span data-ui-raw>${h(job.customerName)}</span>`}</strong> · ${h(job.customerPhone || 'Chưa có số liên hệ')}</p>
     <p>${h(date(job.startTime))} → ${h(date(new Date(new Date(job.startTime).getTime() + job.durationHours * 3600000)))} · ${job.durationHours} giờ</p>
-    <p>${h(job.address)}</p><p>${h(job.notes)}</p><p class="job-price">${money(job.price)}</p>
+    <p>${`<span data-ui-raw>${h(job.address)}</span>`}</p><p>${`<span data-ui-raw>${h(job.notes)}</span>`}</p><p class="job-price">${money(job.price)}</p>
     <p>${job.paymentMethod === 'cash' ? job.paymentStatus === 'Paid' ? 'Bạn đã xác nhận nhận đủ tiền mặt' : 'Khách trả tiền mặt trực tiếp sau ca' : 'Thông tin thanh toán lưu từ trước'}</p>
     ${job.startedAt ? `<p>Bắt đầu thực tế: ${h(date(job.startedAt))}</p>` : ''}${job.completedAt ? `<p>Hoàn thành thực tế: ${h(date(job.completedAt))}</p>` : ''}
     ${job.customerConfirmedAt ? `<p>Khách đã xác nhận · Đánh giá: ${job.customerRating}/5</p>` : ''}
@@ -87,7 +89,7 @@ function renderJobList(view, jobs, mine, current) {
 function bindJobs() {
   document.querySelectorAll('[data-job]').forEach(button => button.onclick = async () => {
     if (busy) return;
-    if (button.dataset.action === 'cash-payment' && !confirm(`Bạn đã nhận đủ tiền mặt trực tiếp từ khách cho CM${button.dataset.job}?`)) return;
+    if (button.dataset.action === 'cash-payment' && !confirm(t(`Bạn đã nhận đủ tiền mặt trực tiếp từ khách cho CM${button.dataset.job}?`))) return;
     busy = true; document.querySelectorAll('[data-job]').forEach(b => b.disabled = true);
     let result = 'Đã cập nhật công việc.';
     try { await api(`/cleaner/jobs/${button.dataset.job}/${button.dataset.action}`, { method:'PUT' }); }
@@ -98,7 +100,7 @@ function bindJobs() {
 }
 function profile(view) {
   const p = user.cleanerProfile, active = approved(user), pending = p?.reviewStatus === 'Pending';
-  view.innerHTML = `<div class="panel"><h2>${active ? 'Hồ sơ cộng tác viên' : 'Đăng ký và xét duyệt'}</h2><p>${h(user.email)}</p><p>Trạng thái: <strong>${h(labels[p?.reviewStatus] || 'Chưa đăng ký')}</strong></p>${p?.reviewReason ? `<div class="alert">${h(p.reviewReason)}</div>` : ''}<button id="refresh-profile" class="secondary">Tải lại trạng thái hồ sơ</button><form id="profile" class="form-grid">${field('Họ tên','fullName',user.fullName)}${field('Số điện thoại','phoneNumber',user.phoneNumber,'tel',20)}${field('Thành phố','city',p?.city || 'Ha Noi')}${field('Địa chỉ','addressText',p?.addressText || user.address || '', 'text',500,false)}<label>Giới thiệu<textarea aria-label="Giới thiệu" name="bio" maxlength="2000" rows="4">${h(p?.bio)}</textarea></label><button ${pending ? 'disabled' : ''}>${pending ? 'Đang chờ xét duyệt' : active ? 'Lưu hồ sơ' : p ? 'Gửi lại hồ sơ' : 'Gửi hồ sơ cleaner'}</button></form><p class="muted">Giá dịch vụ do CleanMate cấu hình. Khách thanh toán tiền mặt trực tiếp sau ca.</p></div>`;
+  view.innerHTML = `<div class="panel"><h2>${active ? 'Hồ sơ cộng tác viên' : 'Đăng ký và xét duyệt'}</h2><p>${`<span data-ui-raw>${h(user.email)}</span>`}</p><p>Trạng thái: <strong>${h(labels[p?.reviewStatus] || 'Chưa đăng ký')}</strong></p>${p?.reviewReason ? `<div class="alert">${`<span data-ui-raw>${h(p.reviewReason)}</span>`}</div>` : ''}<button id="refresh-profile" class="secondary">Tải lại trạng thái hồ sơ</button><form id="profile" class="form-grid">${field('Họ tên','fullName',user.fullName)}${field('Số điện thoại','phoneNumber',user.phoneNumber,'tel',20)}${field('Thành phố','city',p?.city || 'Ha Noi')}${field('Địa chỉ','addressText',p?.addressText || user.address || '', 'text',500,false)}<label>Giới thiệu<textarea aria-label="Giới thiệu" name="bio" maxlength="2000" rows="4">${h(p?.bio)}</textarea></label><button ${pending ? 'disabled' : ''}>${pending ? 'Đang chờ xét duyệt' : active ? 'Lưu hồ sơ' : p ? 'Gửi lại hồ sơ' : 'Gửi hồ sơ cleaner'}</button></form><p class="muted">Giá dịch vụ do CleanMate cấu hình. Khách thanh toán tiền mặt trực tiếp sau ca.</p></div>`;
   document.querySelector('#refresh-profile').onclick = async () => { try { user = await api('/me'); await render(); } catch (e) { fail(e); } };
   document.querySelector('#profile').onsubmit = async event => {
     event.preventDefault(); if (busy || pending) return; busy = true;
@@ -119,7 +121,7 @@ async function notifications(view, stamp) {
   const data = await api('/notifications'); if (stamp !== revision) return;
   noticeItems = data.items; cursor = data.nextBeforeId;
   const draw = () => {
-    view.innerHTML = `<div class="section-head"><p>Chưa đọc: ${data.unreadCount}</p><button id="read-all" ${!noticeItems.length || !data.unreadCount ? 'disabled' : ''}>Đánh dấu tất cả đã đọc</button></div><div class="job-grid">${noticeItems.map(item => `<article class="job-card"><h3>${h(item.title)}</h3><p>${h(item.message)}</p><p>${h(date(item.createdAt))} · ${item.readAt ? 'Đã đọc' : 'Chưa đọc'}</p><button data-open="${item.id}" class="secondary">${item.target === 'Profile' ? 'Xem hồ sơ' : 'Xem công việc'}</button>${!item.readAt ? `<button data-read="${item.id}">Đánh dấu đã đọc</button>` : ''}</article>`).join('') || '<p>Chưa có thông báo.</p>'}</div>${cursor ? '<button id="more">Xem thêm</button>' : ''}`;
+    view.innerHTML = `<div class="section-head"><p>Chưa đọc: ${data.unreadCount}</p><button id="read-all" ${!noticeItems.length || !data.unreadCount ? 'disabled' : ''}>Đánh dấu tất cả đã đọc</button></div><div class="job-grid">${noticeItems.map(item => `<article class="job-card"><h3>${h(item.title)}</h3><p>${`<span data-ui-raw>${h(item.message)}</span>`}</p><p>${h(date(item.createdAt))} · ${item.readAt ? 'Đã đọc' : 'Chưa đọc'}</p><button data-open="${item.id}" class="secondary">${item.target === 'Profile' ? 'Xem hồ sơ' : 'Xem công việc'}</button>${!item.readAt ? `<button data-read="${item.id}">Đánh dấu đã đọc</button>` : ''}</article>`).join('') || '<p>Chưa có thông báo.</p>'}</div>${cursor ? '<button id="more">Xem thêm</button>' : ''}`;
     document.querySelector('#read-all').onclick = () => mark(null);
     document.querySelectorAll('[data-read]').forEach(b => b.onclick = () => mark(Number(b.dataset.read)));
     document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
