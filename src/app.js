@@ -1,4 +1,6 @@
 import { api, session } from './api.js';
+import {showSupport} from './support.js';
+import {showPassword} from './password.js';
 import { approved, eligible, actionFor, stats, filterJobs, phoneUrl, mapsUrl } from './domain.js';
 const root = document.querySelector('#app');
 const h = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -36,7 +38,8 @@ function login(error = '', register = false) {
   };
 }
 function layout(current) {
-  const links = approved(user) ? [['dashboard','Tổng quan'],['available','Tìm việc'],['jobs','Công việc của tôi'],['calendar','Lịch làm việc'],['notifications','Thông báo'],['profile','Hồ sơ']] : [['profile','Hồ sơ'],['notifications','Thông báo']];
+  const links = approved(user) ? [['dashboard','Tổng quan'],['available','Tìm việc'],['jobs','Công việc của tôi'],['calendar','Lịch làm việc'],['support','Hỗ trợ'],['notifications','Thông báo'],['profile','Hồ sơ']] : [['profile','Hồ sơ'],['support','Hỗ trợ'],['notifications','Thông báo']];
+  links.push(['security','Bảo mật']);
   root.innerHTML = `<div class="layout"><aside class="sidebar"><div><div class="brand">Clean<span>Mate</span></div><small>Không gian cộng tác viên</small></div><nav aria-label="Cleaner">${links.map(([key,label]) => `<a href="#/${key}" ${key === current ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav><div class="account"><strong>${h(user.fullName)}</strong><p>${h(user.email)}</p><button id="logout">Đăng xuất</button></div></aside><div class="workspace"><header class="topbar"><h1>${h(links.find(([key]) => key === current)?.[1] || 'Hồ sơ')}</h1><span class="role">${approved(user) ? 'Cleaner đã duyệt' : 'Chờ xét hồ sơ'}</span></header><main class="content"><div id="notice" role="status"></div><section id="view" aria-live="polite">Đang tải...</section></main></div></div>`;
   document.querySelector('#logout').onclick = () => { session.clear(); user = null; Object.keys(jobFilters).forEach(key => jobFilters[key] = emptyFilters()); login(); };
 }
@@ -119,6 +122,7 @@ async function notifications(view, stamp) {
     document.querySelectorAll('[data-read]').forEach(b => b.onclick = () => mark(Number(b.dataset.read)));
     document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
       const item = noticeItems.find(n => n.id === Number(b.dataset.open));
+      if (item.target === 'Support') {location.hash = '#/support';return;}
       if (item.target === 'Orders') { message('Thông báo này thuộc đơn khách hàng. Vui lòng mở web/app khách hàng để xem.'); return; }
       if (item.target === 'Profile' || !approved(user)) location.hash = '#/profile';
       else { jobFilters.jobs = emptyFilters(); location.hash = Number.isSafeInteger(item.bookingId) && item.bookingId > 0 ? `#/jobs?booking=${item.bookingId}` : '#/jobs'; }
@@ -140,11 +144,13 @@ async function render() {
   if (!user) return login();
   const stamp = ++revision;
   let current = route();
-  if (!approved(user) && current !== 'notifications') current = 'profile';
+  if (!approved(user) && !['notifications','support','security'].includes(current)) current = 'profile';
   layout(current); const view = document.querySelector('#view');
   try {
     if (current === 'profile') return profile(view);
+    if(current==='security')return showPassword({view,api,fail,onChanged:(notice='Đã đổi mật khẩu. Vui lòng đăng nhập lại.')=>{session.clear();user=null;login(notice);}});
     if (current === 'notifications') return await notifications(view, stamp);
+    if (current === 'support') return await showSupport({view,api,h,isCurrent:()=>stamp===revision,fail});
     const mine = await api('/cleaner/jobs/mine'); if (stamp !== revision) return;
     if (current === 'dashboard') {
       const summary = stats(mine);

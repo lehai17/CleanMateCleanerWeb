@@ -1,6 +1,26 @@
 import {test,expect} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 const API='http://127.0.0.1:15238', password='Cleaner-system-test-123!';
+test('cleaner confirms logout all and keeps the existing password',async({page,request})=>{
+  const cleaner=await account(request);await login(page,cleaner.email);await page.getByRole('link',{name:'Bảo mật',exact:true}).click();
+  page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Đăng xuất tất cả thiết bị',exact:true}).click();expect((await request.get(`${API}/api/me`,{headers:{Authorization:`Bearer ${cleaner.token}`}})).status()).toBe(200);
+  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Đăng xuất tất cả thiết bị',exact:true}).click();await expect(page.getByText('Đã đăng xuất tất cả thiết bị. Vui lòng đăng nhập lại.',{exact:true})).toBeVisible();expect((await request.get(`${API}/api/me`,{headers:{Authorization:`Bearer ${cleaner.token}`}})).status()).toBe(401);
+  await login(page,cleaner.email);await expect(page.getByRole('link',{name:'Tìm việc',exact:true})).toBeVisible();
+});
+test('cleaner changes password with confirmation and cannot reuse an old session',async({page,request})=>{
+  const cleaner=await account(request),next='New-cleaner-password-456!';await login(page,cleaner.email);await page.getByRole('link',{name:'Bảo mật',exact:true}).click();
+  await page.getByLabel('Mật khẩu hiện tại',{exact:true}).fill(password);await page.getByLabel('Mật khẩu mới',{exact:true}).fill(next);await page.getByLabel('Nhập lại mật khẩu mới',{exact:true}).fill('different-password');await page.getByRole('button',{name:'Lưu mật khẩu mới',exact:true}).click();await expect(page.getByRole('alert')).toContainText('không khớp');
+  await page.getByLabel('Nhập lại mật khẩu mới',{exact:true}).fill(next);await page.getByRole('button',{name:'Lưu mật khẩu mới',exact:true}).click();await expect(page.getByRole('button',{name:'Đăng nhập',exact:true})).toBeVisible();expect((await request.get(`${API}/api/cleaner/jobs/mine`,{headers:{Authorization:`Bearer ${cleaner.token}`}})).status()).toBe(401);
+  await page.getByLabel('Email',{exact:true}).fill(cleaner.email);await page.getByLabel('Mật khẩu',{exact:true}).fill(next);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await expect(page.getByRole('link',{name:'Tìm việc',exact:true})).toBeVisible();
+});
+test('assigned cleaner reports a job problem and reads staff resolution from notifications',async({page,request})=>{
+  const cleaner=await account(request),job=await booking(request),headers={Authorization:`Bearer ${cleaner.token}`};expect((await request.put(`${API}/api/cleaner/jobs/${job.id}/accept`,{headers})).status()).toBe(200);
+  await login(page,cleaner.email);await page.getByRole('link',{name:'Hỗ trợ',exact:true}).click();await page.getByLabel('Mã đơn',{exact:true}).fill(`CM${job.id}`);await page.getByLabel('Loại sự cố',{exact:true}).selectOption('CashPayment');await page.getByLabel('Mô tả',{exact:true}).fill('Cần xác minh thông tin tiền mặt với khách.');
+  const sent=page.waitForResponse(r=>r.url().includes('/api/support')&&r.request().method()==='POST');await page.getByRole('button',{name:'Gửi yêu cầu hỗ trợ',exact:true}).click();const r=await sent;expect(r.status()).toBe(200);const ticket=await r.json();await expect(page.locator(`[data-support-id="${ticket.id}"]`)).toBeVisible();
+  expect((await request.put(`${API}/api/management/support/${ticket.id}`,{headers:await admin(request),data:{status:'Resolved',response:'Đã hướng dẫn hai bên kiểm tra trực tiếp tiền mặt.',version:1}})).status()).toBe(200);
+  await page.getByRole('link',{name:'Thông báo',exact:true}).click();await page.locator('.job-card').filter({hasText:'Yêu cầu hỗ trợ đã được cập nhật'}).getByRole('button',{name:'Xem công việc',exact:true}).click();await expect(page).toHaveURL(/#\/support$/);await expect(page.locator(`[data-support-id="${ticket.id}"]`)).toContainText('Đã hướng dẫn hai bên');
+  const mine=await request.get(`${API}/api/cleaner/jobs/mine`,{headers});expect((await mine.json()).find(j=>j.id===job.id)).toMatchObject({status:'Accepted',paymentStatus:'Unpaid'});
+});
 async function admin(request) {const r=await request.post(`${API}/api/auth/login`,{data:{email:'admin@system.test',password:'CleanMate-admin-test-123!'}});expect(r.status()).toBe(200);return {Authorization:`Bearer ${(await r.json()).token}`};}
 async function review(request,id,status='Approved',reason) {expect((await request.put(`${API}/api/management/applications/${id}/review`,{headers:await admin(request),data:{status,reason}})).status()).toBe(200);}
 async function account(request,role='Cleaner',approve=true) {
