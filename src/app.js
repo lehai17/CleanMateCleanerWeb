@@ -20,7 +20,7 @@ const selectedBooking = () => {
 const emptyFilters = () => ({search:'',status:'All',day:''});
 const jobFilters = {available:emptyFilters(),jobs:emptyFilters(),calendar:emptyFilters()};
 function message(text) { const el = document.querySelector('#notice'); if (el) { el.className = text ? 'alert' : ''; el.textContent = text; } }
-function fail(error) { if (error.status === 401) { session.clear(); user = null; login(error.message); } else message(error.message); }
+function fail(error) { if(error.staleSession)return; if (error.status === 401) { session.clear(); user = null; login(error.message); } else message(error.message); }
 function field(label, name, value = '', type = 'text', max = 200, required = true) {
   return `<label>${label}<input name="${name}" type="${type}" value="${h(value)}" maxlength="${max}" ${required ? 'required' : ''}></label>`;
 }
@@ -168,9 +168,9 @@ async function render() {
 }
 window.addEventListener('hashchange', () => { if (!busy) render(); });
 async function init() {
-  if (!session.get()) return login();
+  const expected=session.get();if(!expected)return login();const ticket=++revision;
   root.textContent = 'Đang kiểm tra tài khoản...';
-  try { user = await api('/me'); if (!eligible(user)) { session.clear(); user = null; return login('Tài khoản này không thuộc khu vực cleaner.'); } await render(); }
-  catch (e) { if (e.status === 401) { session.clear(); user = null; login(e.message); } else { root.innerHTML = '<p>Không thể kết nối. Kiểm tra API và thử lại.</p><button id="retry-init">Thử lại</button>'; document.querySelector('#retry-init').onclick = init; } }
+  try { const current=await api('/me');if(ticket!==revision||session.get()!==expected)return;if(!eligible(current)){session.clear();user=null;return login('Tài khoản này không thuộc khu vực cleaner.');}user=current;await render(); }
+  catch(e){if(e.staleSession||ticket!==revision||session.get()!==expected)return;if(e.status===401){session.clear();user=null;login(e.message);}else{root.innerHTML='<main class="content"><p role="alert">Không thể kết nối để kiểm tra tài khoản. Vui lòng thử lại.</p><button data-retry-session>Thử kết nối lại</button> <button class="secondary" data-other-account>Đăng nhập bằng tài khoản khác</button></main>';root.querySelector('[data-retry-session]').onclick=init;root.querySelector('[data-other-account]').onclick=()=>{session.clear();user=null;login();};}}
 }
 init();
