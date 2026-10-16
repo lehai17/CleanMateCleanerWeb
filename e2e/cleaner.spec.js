@@ -10,9 +10,9 @@ async function account(request,role='Cleaner',approve=true) {
   return {...auth,email};
 }
 async function login(page,email) {await page.goto('/');await page.getByLabel('Email',{exact:true}).fill(email);await page.getByLabel('Mật khẩu',{exact:true}).fill(password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();}
-async function booking(request,offset=2) {
+async function booking(request,offset=2,overrides={}) {
   const customer=await account(request,'Customer');
-  const r=await request.post(`${API}/api/bookings`,{headers:{Authorization:`Bearer ${customer.token}`},data:{serviceKey:'cleaning',startTime:new Date(Date.now()+offset*86400000).toISOString(),durationHours:2,address:'123 Cleaner Test Street',paymentMethod:'cash',notes:'Test cleaner workspace'}});
+  const r=await request.post(`${API}/api/bookings`,{headers:{Authorization:`Bearer ${customer.token}`},data:{serviceKey:'cleaning',startTime:new Date(Date.now()+offset*86400000).toISOString(),durationHours:2,address:'123 Cleaner Test Street',paymentMethod:'cash',notes:'Test cleaner workspace',...overrides}});
   expect(r.status()).toBe(200);return r.json();
 }
 test.beforeEach(async({page})=>{page.errors=[];page.on('pageerror',e=>page.errors.push(e.message));});
@@ -74,4 +74,41 @@ test('new applicant can register in the cleaner portal without granting work acc
   await page.goto('/');await page.getByRole('button',{name:'Đăng ký làm cleaner',exact:true}).click();
   await page.getByLabel('Họ tên',{exact:true}).fill('New Cleaner');await page.getByLabel('Số điện thoại',{exact:true}).fill('0901234567');await page.getByLabel('Email',{exact:true}).fill(`${randomUUID()}@example.test`);await page.getByLabel('Mật khẩu',{exact:true}).fill(password);await page.getByRole('button',{name:'Gửi đăng ký',exact:true}).click();
   await expect(page.getByRole('button',{name:'Đang chờ xét duyệt'})).toBeDisabled();await expect(page.getByRole('link',{name:'Tìm việc',exact:true})).toHaveCount(0);
+});
+test('filters use Vietnam dates, search without accents, and keep active-job safeguards',async({page,request})=>{
+  const cleaner=await account(request), headers={Authorization:`Bearer ${cleaner.token}`};
+  const start=new Date(Date.now()+2*86400000);start.setUTCHours(18,0,0,0);
+  const done=await booking(request,2,{startTime:start.toISOString(),address:'123 Đà Nẵng'});
+  const accepted=await booking(request,4),active=await booking(request,6);
+  for(const job of [done,accepted,active])expect((await request.put(`${API}/api/cleaner/jobs/${job.id}/accept`,{headers})).status()).toBe(200);
+  for(const action of ['start','complete'])expect((await request.put(`${API}/api/cleaner/jobs/${done.id}/${action}`,{headers})).status()).toBe(200);
+  expect((await request.put(`${API}/api/cleaner/jobs/${active.id}/start`,{headers})).status()).toBe(200);
+  await login(page,cleaner.email);await page.getByRole('link',{name:'Công việc của tôi',exact:true}).click();
+  await expect(page.locator('[data-booking-id]')).toHaveCount(3);
+  await page.getByLabel('Tìm công việc',{exact:true}).fill('da nang');await page.getByRole('button',{name:'Lọc công việc',exact:true}).click();
+  await expect(page.locator('[data-booking-id]')).toHaveCount(1);
+  const card=page.locator(`[data-booking-id="${done.id}"]`);
+  await expect(card.getByRole('link',{name:'Gọi khách',exact:true})).toHaveAttribute('href','tel:0901234567');
+  const href=await card.getByRole('link',{name:'Xem bản đồ',exact:true}).getAttribute('href');expect(new URL(href).searchParams.get('query')).toBe('123 Đà Nẵng');
+  await page.getByRole('button',{name:'Xóa bộ lọc',exact:true}).click();
+  const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh'}).format(start);
+  await page.getByLabel('Ngày làm việc',{exact:true}).fill(day);await page.getByRole('button',{name:'Lọc công việc',exact:true}).click();await expect(card).toBeVisible();await expect(page.locator('[data-booking-id]')).toHaveCount(1);
+  await page.getByRole('button',{name:'Tải lại',exact:true}).click();await expect(page.getByLabel('Ngày làm việc',{exact:true})).toHaveValue(day);await expect(page.locator('[data-booking-id]')).toHaveCount(1);
+  await page.getByRole('button',{name:'Xóa bộ lọc',exact:true}).click();await page.getByLabel('Trạng thái',{exact:true}).selectOption('Accepted');await page.getByRole('button',{name:'Lọc công việc',exact:true}).click();
+  await expect(page.locator('[data-booking-id]')).toHaveCount(1);await expect(page.locator(`[data-booking-id="${accepted.id}"]`).getByRole('button',{name:'Bắt đầu công việc',exact:true})).toBeDisabled();
+  await page.getByRole('link',{name:'Lịch làm việc',exact:true}).click();await expect(card).toHaveCount(0);await expect(page.locator('[data-booking-id]')).toHaveCount(2);
+});
+test('notification opens only its own completed job and a missing selection never opens another job',async({page,request})=>{
+  const cleaner=await account(request),headers={Authorization:`Bearer ${cleaner.token}`};const done=await booking(request,2),other=await booking(request,4);
+  for(const job of [done,other])expect((await request.put(`${API}/api/cleaner/jobs/${job.id}/accept`,{headers})).status()).toBe(200);
+  for(const action of ['start','complete'])expect((await request.put(`${API}/api/cleaner/jobs/${done.id}/${action}`,{headers})).status()).toBe(200);
+  await login(page,cleaner.email);await page.getByRole('link',{name:'Công việc của tôi',exact:true}).click();
+  await page.getByLabel('Trạng thái',{exact:true}).selectOption('Accepted');await page.getByRole('button',{name:'Lọc công việc',exact:true}).click();
+  await page.getByRole('link',{name:'Thông báo',exact:true}).click();
+  await page.locator('.job-card').filter({hasText:`ca CM${done.id}.`}).getByRole('button',{name:'Xem công việc',exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`#/jobs\\?booking=${done.id}$`));
+  await expect(page.locator('[data-booking-id]')).toHaveCount(1);await expect(page.locator(`[data-booking-id="${done.id}"]`)).toContainText('Hoàn thành thực tế:');
+  await page.reload();await expect(page.locator('[data-booking-id]')).toHaveCount(1);await expect(page.locator(`[data-booking-id="${done.id}"]`)).toBeVisible();
+  await page.getByRole('link',{name:'Xem tất cả công việc',exact:true}).click();await expect(page.locator('[data-booking-id]')).toHaveCount(2);
+  await page.goto('/#/jobs?booking=2147483647');await expect(page.locator('[data-booking-id]')).toHaveCount(0);await expect(page.locator('#view')).toContainText('Không tìm thấy ca này');
 });

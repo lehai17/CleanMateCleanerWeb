@@ -14,6 +14,10 @@ No commit, remote or GitHub repository has been created automatically.
 - Confirm receipt only after receiving the full cash amount directly from the customer.
 - Edit actual profile details; read/paginate notifications and persist read state.
 - Refresh data after successful or conflicting actions; prevent duplicate UI submissions.
+- Search booking codes, customer/contact information and addresses (Vietnamese with or without accents).
+- Filter work by status and Vietnam calendar day; filters survive data refresh.
+- Open the exact assigned job from a notification, including completed work.
+- Call the customer for an assigned job or open its address in Maps.
 
 Existing backend checks enforce ownership, non-overlapping accepted schedules and
 one job in progress. Declared cash totals are not a wallet or a platform payout.
@@ -43,7 +47,7 @@ For deployment run this server behind HTTPS with the correct private API origin.
 
 ## Build and tests
 
-Verified 16 October 2026: 4 Node tests and 10 Playwright desktop/mobile cases
+Verified 16 October 2026: 8 Node tests and 14 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 
 ```powershell
@@ -76,7 +80,7 @@ Suggested GitHub repository: `CleanMateCleanerWeb`. Create an empty repository,
 then add its URL as this folder's `origin`. Commit text:
 
 ```text
-Add standalone cleaner web portal with job lifecycle and application review
+Add cleaner job filters, contact shortcuts, and notification job navigation
 ```
 
 If your Windows user encounters sandbox ownership detection, trust only this repo:
