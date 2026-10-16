@@ -51,7 +51,12 @@ For deployment run this server behind HTTPS with the correct private API origin.
 
 ## Build and tests
 
-Verified 16 October 2026: 8 Node tests and 20 Playwright desktop/mobile cases
+Login/signup errors include the backend's retry time when throttled. The proxy
+preserves Retry-After and replaces browser-provided forwarding headers with the
+socket peer IP. New passwords are capped at 72 UTF-8 bytes by the backend.
+See ../backend/AUTH_RATE_LIMITS.md for quotas and proxy deployment settings.
+
+Verified 16 October 2026: 9 Node tests and 22 Playwright desktop/mobile cases
 passed with no skipped/flaky cases. The generated SQL database was cleaned up.
 Security → Đổi mật khẩu requires the current password and a matching new password.
 Success invalidates old JWT sessions and returns to login. Google-only accounts
