@@ -14,7 +14,7 @@ export function createServer({ apiUrl = process.env.CLEANMATE_API_URL || "http:/
     const url = new URL(request.url, "http://localhost");
     try {
       if (url.pathname.startsWith("/api/")) {
-        if (!(/^\/api\/(?:auth\/(?:login|register|change-password|logout-all)|me|support(?:\/bookings)?\/?|profile\/?|profile\/(?:register-cleaner|cleaner-application)|cleaner\/profile|cleaner\/jobs\/(?:available|mine|\d+\/(?:accept|start|complete|cash-payment))|notifications(?:\/(?:unread-count|read-all|\d+\/read))?)$/.test(url.pathname))) {
+        if (!(/^\/api\/(?:auth\/(?:login|register|change-password|logout-all)|me|support(?:\/bookings|\/\d+\/messages)?\/?|profile\/?|profile\/(?:register-cleaner|cleaner-application)|cleaner\/profile|cleaner\/jobs\/(?:available|mine|\d+\/(?:accept|start|complete|cash-payment))|notifications(?:\/(?:unread-count|read-all|\d+\/read))?)$/.test(url.pathname))) {
           response.writeHead(404).end(); return;
         }
         if (!["GET", "POST", "PUT"].includes(request.method)) { response.writeHead(405).end(); return; }
@@ -35,7 +35,7 @@ export function createServer({ apiUrl = process.env.CLEANMATE_API_URL || "http:/
         response.writeHead(upstream.status, { "Content-Type": upstream.headers.get("content-type") || "application/json", ...(retryAfter ? {'Retry-After':retryAfter} : {}) });
         response.end(Buffer.from(await upstream.arrayBuffer())); return;
       }
-      const files = new Map([["/", "index.html"], ["/index.html", "index.html"], ["/src/app.js", "src/app.js"], ["/src/api.js", "src/api.js"], ["/src/domain.js", "src/domain.js"], ["/src/support.js", "src/support.js"], ["/src/password.js", "src/password.js"], ["/src/styles.css", "src/styles.css"]]);
+      const files = new Map([["/", "index.html"], ["/index.html", "index.html"], ["/src/app.js", "src/app.js"], ["/src/api.js", "src/api.js"], ["/src/domain.js", "src/domain.js"], ["/src/support.js", "src/support.js"], ["/src/password.js", "src/password.js"], ["/src/conversation.js", "src/conversation.js"], ["/src/styles.css", "src/styles.css"]]);
       const file = files.get(url.pathname);
       if (!file || !["GET", "HEAD"].includes(request.method)) { response.writeHead(404).end(); return; }
       const content = await readFile(path.join(root, file));

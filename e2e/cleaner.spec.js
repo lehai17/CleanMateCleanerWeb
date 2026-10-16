@@ -1,6 +1,13 @@
 import {test,expect} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 const API='http://127.0.0.1:15238', password='Cleaner-system-test-123!';
+test('cleaner sends follow-up messages and reads private staff replies after reload',async({page,request})=>{
+  const cleaner=await account(request),job=await booking(request),headers={Authorization:`Bearer ${cleaner.token}`};expect((await request.put(`${API}/api/cleaner/jobs/${job.id}/accept`,{headers})).status()).toBe(200);
+  const created=await request.post(`${API}/api/support`,{headers,data:{bookingId:job.id,category:'Scheduling',description:'Cleaner cần hỗ trợ thêm thông tin.',requestId:randomUUID()}});expect(created.status()).toBe(200);const ticket=(await created.json()).id;
+  await login(page,cleaner.email);await page.getByRole('link',{name:'Hỗ trợ',exact:true}).click();let card=page.locator(`[data-support-id="${ticket}"]`);await card.getByRole('button',{name:'Xem trao đổi',exact:true}).click();await card.getByLabel('Tin nhắn hỗ trợ',{exact:true}).fill('Cleaner bổ sung thông tin ca làm.');await card.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();await expect(card.locator('[data-message-id]')).toHaveCount(1);
+  expect((await request.post(`${API}/api/management/support/${ticket}/messages`,{headers:await admin(request),data:{body:'Staff đã kiểm tra thông tin cho cleaner.',requestId:randomUUID()}})).status()).toBe(200);
+  await page.reload();await card.getByRole('button',{name:'Xem trao đổi',exact:true}).click();await expect(card.locator('[data-message-id]')).toHaveCount(2);await expect(card).toContainText('Staff đã kiểm tra');expect((await (await request.get(`${API}/api/cleaner/jobs/mine`,{headers})).json()).find(j=>j.id===job.id).status).toBe('Accepted');
+});
 test('cleaner login displays retry instructions without creating a session',async({page,request})=>{
   const cleaner=await account(request);await page.goto('/');await page.route('**/api/auth/login',route=>route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'42'},body:JSON.stringify({message:'Thử lại sau 42 giây.',retryAfterSeconds:42})}));
   await page.getByLabel('Email',{exact:true}).fill(cleaner.email);await page.getByLabel('Mật khẩu',{exact:true}).fill(password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await expect(page.locator('#notice')).toContainText('42 giây');await expect(page.getByLabel('Mật khẩu',{exact:true})).toHaveValue('');
